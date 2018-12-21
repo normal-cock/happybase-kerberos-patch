@@ -235,3 +235,42 @@ class KerberosConnection(Connection):
         protocol = self._protocol_class(self.transport, decode_response=False)
         self.client = TClient(Hbase, protocol)
 
+
+import contextlib
+import logging
+import socket
+import threading
+
+from six.moves import queue, range
+
+from thriftpy.thrift import TException
+
+logger = logging.getLogger(__name__)
+from happybase import ConnectionPool
+class KerberosConnectionPool(ConnectionPool):
+    def __init__(self, size, **kwargs):
+        if not isinstance(size, int):
+            raise TypeError("Pool 'size' arg must be an integer")
+
+        if not size > 0:
+            raise ValueError("Pool 'size' arg must be greater than zero")
+
+        logger.debug(
+            "Initializing connection pool with %d connections", size)
+
+        self._lock = threading.Lock()
+        self._queue = queue.LifoQueue(maxsize=size)
+        self._thread_connections = threading.local()
+
+        connection_kwargs = kwargs
+        connection_kwargs['autoconnect'] = False
+
+        for i in range(size):
+            connection = KerberosConnection(**connection_kwargs)
+            self._queue.put(connection)
+
+        # The first connection is made immediately so that trivial
+        # mistakes like unresolvable host names are raised immediately.
+        # Subsequent connections are connected lazily.
+        with self.connection():
+            pass
