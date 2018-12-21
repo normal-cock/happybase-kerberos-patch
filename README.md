@@ -1,6 +1,10 @@
 # happybase-kerberos-patch
+
 ## Introduction
 This is a patch for happybase to support kerberos when connect to hbase thrift server.
+
+# Installment
+    pip install -U git+https://github.com/zhiyajun11/happybase-kerberos-patch.git
 
 ## Usage:
     from happybase_kerberos_patch import KerberosConnection
