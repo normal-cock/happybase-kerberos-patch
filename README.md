@@ -23,4 +23,4 @@ This is a patch for happybase to support kerberos when connect to hbase thrift s
 ## Important points to remember:
 * Only support "compact" protocol and "buffered" transport
 * Only support happybase>=1.0.0
-* `connection.tables` is not supported
+
