@@ -327,12 +327,16 @@ class KerberosConnectionPool(ConnectionPool):
         :return: active connection from the pool
         :rtype: :py:class:`happybase.Connection`
         """
-
+        # 几种场景：非嵌套调用with的时候、执行到with内部代码块的时候、嵌套调with的时候、执行到嵌套with内部代码块的时候
+        # 这里的高可用只针对创建pool的时候，以及
         for host in self._hosts:
 
             connection = getattr(self._thread_connections, 'current', None)
-            return_after_use = False
-            # 只有在出现异常，并且异常没有直接抛出时，才会continue
+            # 代表是否是最外层with
+            outermost_with = False
+            # 代表是否执行到了with代码块内部
+            in_with = False
+            # 是否重试。
             is_continue = False
             if connection is None:
                 # This is the outermost connection requests for this thread.
@@ -344,7 +348,7 @@ class KerberosConnectionPool(ConnectionPool):
                 # thread local; see
                 # http://emptysquare.net/blog/another-thing-about-pythons-
                 # threadlocals/
-                return_after_use = True
+                outermost_with = True
                 connection = self._acquire_connection(host, timeout)
                 with self._lock:
                     self._thread_connections.current = connection
@@ -353,7 +357,7 @@ class KerberosConnectionPool(ConnectionPool):
                 # Open connection, because connections are opened lazily.
                 # This is a no-op for connections that are already open.
                 connection.open()
-
+                in_with = True
                 # Return value from the context manager's __enter__()
                 yield connection
 
@@ -364,20 +368,21 @@ class KerberosConnectionPool(ConnectionPool):
                 logger.info("Replacing tainted pool connection")
                 logger.error("error when connect to {}".format(host))
                 connection._refresh_thrift_client()
-                if not return_after_use:
+                if outermost_with and not in_with:
+                    # 只有在continue的时候才不open
+                    is_continue = True
+                else:
                     connection.open()
                     # Reraise to caller; see contextlib.contextmanager() docs
                     raise
-                else:
-                    is_continue = True
             finally:
                 # Remove thread local reference after the outermost 'with'
                 # block ends. Afterwards the thread no longer owns the
                 # connection.
-                if return_after_use:
+                if outermost_with:
                     del self._thread_connections.current
                     self._return_connection(host, connection)
-                if not is_continue:
-                    break
+            if not is_continue:
+                break
         else:
             raise
