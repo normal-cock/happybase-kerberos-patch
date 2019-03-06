@@ -117,7 +117,7 @@ class TSaslClientTransport(TTransportBase, CReadableTransport):
 
     def read(self, sz):
         ret = self.__rbuf.read(sz)
-        if len(ret) != 0:
+        if len(ret) != 0 or sz == 0:
             return ret
 
         self._read_frame()
