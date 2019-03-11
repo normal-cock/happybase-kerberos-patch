@@ -4,7 +4,7 @@ setup(
     version="0.1",
     py_modules=['happybase_kerberos_patch'],
     install_requires=[
-        'kerberos',
+        'pykerberos',
         'pure-sasl',
         'happybase>=1.0.0',
     ],
