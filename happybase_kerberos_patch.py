@@ -372,7 +372,10 @@ class KerberosConnectionPool(ConnectionPool):
                     # 只有在continue的时候才不open
                     is_continue = True
                 else:
-                    connection.open()
+                    # 一个connection，即使open失败，调用connection.transport.is_open()也返回True
+                    # 而connection.open刚开始就会调用is_open来检测，所以第二次调用connection.open不会报错
+                    # 所以把这里的open注释掉
+                    # connection.open()
                     # Reraise to caller; see contextlib.contextmanager() docs
                     raise
             finally:
