@@ -19,6 +19,12 @@ This is a patch for happybase to support kerberos when connect to hbase thrift s
     with pool.connection() as connection:
         test = connection.table('test')
         print test_table.row('row_key_1')
+        
+    # multiple thrift servers high avaliable
+    pool = KerberosConnectionPool(size=3, hosts=['thrift1', 'thrift2'], protocol='compact', use_kerberos=True)
+    with pool.connection() as connection:
+        test = connection.table('test')
+        print test_table.row('row_key_1')
 
 ## Important points to remember:
 * Only support "compact" protocol and "buffered" transport
