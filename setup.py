@@ -6,6 +6,6 @@ setup(
     install_requires=[
         'pykerberos',
         'pure-sasl',
-        'happybase>=1.0.0',
+        'happybase==1.1.0',
     ],
 )
