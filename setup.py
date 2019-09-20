@@ -1,7 +1,8 @@
 from setuptools import setup, find_packages
+version = "0.1.3"
 setup(
     name="happybase-kerberos-patch",
-    version="0.1",
+    version=version,
     py_modules=['happybase_kerberos_patch'],
     install_requires=[
         'pykerberos',
