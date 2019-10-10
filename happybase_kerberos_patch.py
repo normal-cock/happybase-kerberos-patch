@@ -1,39 +1,37 @@
 # coding=utf8
 
-from thriftpy.transport import TTransportBase, TTransportException
-from thriftpy.protocol.compact import pack, unpack
-from thriftpy.transport import readall
+from __future__ import unicode_literals, print_function
+
+from happybase import ConnectionPool, NoConnectionsAvailable
+import six
+try:
+    from thriftpy2.thrift import TClient, TException
+    from thriftpy2.transport import TBufferedTransport, TFramedTransport, TSocket, TTransportBase, TTransportException, readall
+    from thriftpy2.protocol import TBinaryProtocol, TCompactProtocol
+except:
+    from thriftpy.thrift import TClient, TException
+    from thriftpy.transport import TBufferedTransport, TFramedTransport, TSocket, TTransportBase, TTransportException, readall
+    from thriftpy.protocol import TBinaryProtocol, TCompactProtocol
+
+from puresasl.client import SASLClient
+from happybase.util import ensure_bytes
+from Hbase_thrift import Hbase
+from struct import pack, unpack
 from happybase import Connection
-from cStringIO import StringIO as BufferIO
+# from cStringIO import StringIO as BytesIO
+from io import BytesIO
+import contextlib
+import logging
+import socket
+import threading
 
-# This class should be thought of as an interface.
-class CReadableTransport(object):
-    """base class for transports that are readable from C"""
+from six.moves import queue, range
 
-    # TODO(dreiss): Think about changing this interface to allow us to use
-    #               a (Python, not c) StringIO instead, because it allows
-    #               you to write after reading.
+from kerberos import KrbError
 
-    # NOTE: This is a classic class, so properties will NOT work
-    #       correctly for setting.
-    @property
-    def cstringio_buf(self):
-        """A cStringIO buffer that contains the current chunk we are reading."""
-        pass
+logger = logging.getLogger(__name__)
 
-    def cstringio_refill(self, partialread, reqlen):
-        """Refills cstringio_buf.
-        Returns the currently used buffer (which can but need not be the same as
-        the old cstringio_buf). partialread is what the C code has read from the
-        buffer, and should be inserted into the buffer before any more reads.  The
-        return value must be a new, not borrowed reference.  Something along the
-        lines of self._buf should be fine.
-        If reqlen bytes can't be read, throw EOFError.
-        """
-        pass
-
-
-class TSaslClientTransport(TTransportBase, CReadableTransport):
+class TSaslClientTransport(TTransportBase):
     """
     SASL transport
     """
@@ -55,13 +53,11 @@ class TSaslClientTransport(TTransportBase, CReadableTransport):
         constructor.
         """
 
-        from puresasl.client import SASLClient
-
         self.transport = transport
         self.sasl = SASLClient(host, service, mechanism, **sasl_kwargs)
 
-        self.__wbuf = BufferIO()
-        self.__rbuf = BufferIO(b'')
+        self.__wbuf = BytesIO()
+        self.__rbuf = BytesIO()
 
     def is_open(self):
         return self.transport.is_open() and bool(self.sasl)
@@ -70,7 +66,7 @@ class TSaslClientTransport(TTransportBase, CReadableTransport):
         if not self.transport.is_open():
             self.transport.open()
 
-        self.send_sasl_msg(self.START, self.sasl.mechanism)
+        self.send_sasl_msg(self.START, bytearray(self.sasl.mechanism, 'utf8'))
         self.send_sasl_msg(self.OK, self.sasl.process())
 
         while True:
@@ -111,9 +107,9 @@ class TSaslClientTransport(TTransportBase, CReadableTransport):
     def flush(self):
         data = self.__wbuf.getvalue()
         encoded = self.sasl.wrap(data)
-        self.transport.write(''.join((pack("!i", len(encoded)), encoded)))
+        self.transport.write(b''.join((pack("!i", len(encoded)), encoded)))
         self.transport.flush()
-        self.__wbuf = BufferIO()
+        self.__wbuf = BytesIO()
 
     def read(self, sz):
         ret = self.__rbuf.read(sz)
@@ -127,33 +123,26 @@ class TSaslClientTransport(TTransportBase, CReadableTransport):
         header = readall(self.transport.read, 4)
         length, = unpack('!i', header)
         encoded = readall(self.transport.read, length)
-        self.__rbuf = BufferIO(self.sasl.unwrap(encoded))
+        self.__rbuf = BytesIO(self.sasl.unwrap(encoded))
 
     def close(self):
         self.sasl.dispose()
         self.transport.close()
 
-    # based on TFramedTransport
-    @property
-    def cstringio_buf(self):
-        return self.__rbuf
+    # # based on TFramedTransport
+    # @property
+    # def cstringio_buf(self):
+    #     return self.__rbuf
 
-    def cstringio_refill(self, prefix, reqlen):
-        # self.__rbuf will already be empty here because fastbinary doesn't
-        # ask for a refill until the previous buffer is empty.  Therefore,
-        # we can start reading new frames immediately.
-        while len(prefix) < reqlen:
-            self._read_frame()
-            prefix += self.__rbuf.getvalue()
-        self.__rbuf = BufferIO(prefix)
-        return self.__rbuf
-
-import six
-from thriftpy.thrift import TClient
-from thriftpy.transport import TBufferedTransport, TFramedTransport, TSocket
-from thriftpy.protocol import TBinaryProtocol, TCompactProtocol
-from happybase.util import ensure_bytes
-from Hbase_thrift import Hbase
+    # def cstringio_refill(self, prefix, reqlen):
+    #     # self.__rbuf will already be empty here because fastbinary doesn't
+    #     # ask for a refill until the previous buffer is empty.  Therefore,
+    #     # we can start reading new frames immediately.
+    #     while len(prefix) < reqlen:
+    #         self._read_frame()
+    #         prefix += self.__rbuf.getvalue()
+    #     self.__rbuf = BytesIO(prefix)
+    #     return self.__rbuf
 
 STRING_OR_BINARY = (six.binary_type, six.text_type)
 
@@ -236,22 +225,25 @@ class KerberosConnection(Connection):
         self.client = TClient(Hbase, protocol)
 
 
-import contextlib
-import logging
-import socket
-import threading
+class NoHostsAvailable(RuntimeError):
+    """
+    Exception raised when no hosts specified in KerberosConnectionPool are available.
+    """
+    pass
 
-from six.moves import queue, range
-
-from thriftpy.thrift import TException
-from kerberos import KrbError
-
-logger = logging.getLogger(__name__)
-from happybase import ConnectionPool
 class KerberosConnectionPool(ConnectionPool):
-    def __init__(self, size, hosts=[], **kwargs):
+    """
+    similar to `happybase.ConnectionPool` with the following extra features
+    1. support multiple specify multiple hosts as destination to connection as
+        a support to high avaliable
+    2. pool will auto connect to the next host if current is unavailable even in
+        the outermost with statement
+    """
+    def __init__(self, size, hosts=None, **kwargs):
         '''
-            hosts: 格式为列表或者逗号隔开的字符串；host存在时，以host为准；host为空时，hosts才会生效。
+            hosts: 
+                A list of hosts or a string of hosts seperated by ","
+                This parameter works only if host is not specified
         '''
         if not isinstance(size, int):
             raise TypeError("Pool 'size' arg must be an integer")
@@ -274,7 +266,7 @@ class KerberosConnectionPool(ConnectionPool):
         else:
             if isinstance(hosts, list):
                 self._hosts = hosts
-            elif isinstance(hosts, str) or isinstance(hosts, unicode):
+            elif isinstance(hosts, six.text_type):
                 self._hosts = hosts.split(',')
             else:
                 raise Exception('error hosts type')
@@ -309,34 +301,13 @@ class KerberosConnectionPool(ConnectionPool):
 
     @contextlib.contextmanager
     def connection(self, timeout=None):
-        """
-        Obtain a connection from the pool.
-
-        This method *must* be used as a context manager, i.e. with
-        Python's ``with`` block. Example::
-
-            with pool.connection() as connection:
-                pass  # do something with the connection
-
-        If `timeout` is specified, this is the number of seconds to wait
-        for a connection to become available before
-        :py:exc:`NoConnectionsAvailable` is raised. If omitted, this
-        method waits forever for a connection to become available.
-
-        :param int timeout: number of seconds to wait (optional)
-        :return: active connection from the pool
-        :rtype: :py:class:`happybase.Connection`
-        """
-        # 几种场景：非嵌套调用with的时候、执行到with内部代码块的时候、嵌套调with的时候、执行到嵌套with内部代码块的时候
-        # 这里的高可用只针对创建pool的时候，以及
         for host in self._hosts:
-
             connection = getattr(self._thread_connections, 'current', None)
-            # 代表是否是最外层with
-            outermost_with = False
-            # 代表是否执行到了with代码块内部
-            in_with = False
-            # 是否重试。
+            # whether in the outermost `with` context
+            is_outermost_with = False
+            # whether the exception raised in ``with`` block, not include ``with`` statement
+            is_in_with = False
+            # whether to retry next host
             is_continue = False
             if connection is None:
                 # This is the outermost connection requests for this thread.
@@ -348,7 +319,7 @@ class KerberosConnectionPool(ConnectionPool):
                 # thread local; see
                 # http://emptysquare.net/blog/another-thing-about-pythons-
                 # threadlocals/
-                outermost_with = True
+                is_outermost_with = True
                 connection = self._acquire_connection(host, timeout)
                 with self._lock:
                     self._thread_connections.current = connection
@@ -356,36 +327,39 @@ class KerberosConnectionPool(ConnectionPool):
             try:
                 # Open connection, because connections are opened lazily.
                 # This is a no-op for connections that are already open.
+                # import ipdb; ipdb.set_trace()
                 connection.open()
-                in_with = True
+                is_in_with = True
                 # Return value from the context manager's __enter__()
                 yield connection
 
-            except (TException, socket.error, KrbError):
+            except (TException, socket.error, KrbError) as e:
                 # Refresh the underlying Thrift client if an exception
                 # occurred in the Thrift layer, since we don't know whether
                 # the connection is still usable.
                 logger.info("Replacing tainted pool connection")
-                logger.error("error when connect to {}".format(host))
+                logger.error("{} error when connect to {}".format(str(e), host))
+                # don't try to open the new connection here because even if 
+                # the new connection's `connection.open` failed, the 
+                # `connection.transport.is_open` still returns `True` which
+                # results in success of the next invoking of `connection.open` 
+                # in `with pool.connection()` even if the host is still unaccessible.
                 connection._refresh_thrift_client()
-                if outermost_with and not in_with:
-                    # 只有在continue的时候才不open
+                if is_outermost_with and not is_in_with:
+                    # only retry to connect to next host during the outermost `with` statement
                     is_continue = True
                 else:
-                    # 一个connection，即使open失败，调用connection.transport.is_open()也返回True
-                    # 而connection.open刚开始就会调用is_open来检测，所以第二次调用connection.open不会报错
-                    # 所以把这里的open注释掉
-                    # connection.open()
-                    # Reraise to caller; see contextlib.contextmanager() docs
                     raise
             finally:
                 # Remove thread local reference after the outermost 'with'
                 # block ends. Afterwards the thread no longer owns the
                 # connection.
-                if outermost_with:
+                if is_outermost_with:
                     del self._thread_connections.current
                     self._return_connection(host, connection)
             if not is_continue:
                 break
         else:
-            raise
+            raise NoHostsAvailable(
+                "No available host connection available from pool within specified "
+                "timeout")
