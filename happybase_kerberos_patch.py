@@ -1,9 +1,14 @@
 # coding=utf8
-
-from __future__ import unicode_literals, print_function
-
-from happybase import ConnectionPool, NoConnectionsAvailable
 import six
+from struct import pack, unpack
+import base64
+from io import BytesIO
+import contextlib
+import logging
+import socket
+import threading
+from six.moves import queue, range
+
 try:
     from thriftpy2.thrift import TClient, TException
     from thriftpy2.transport import TBufferedTransport, TFramedTransport, TSocket, TTransportBase, TTransportException, readall
@@ -13,23 +18,35 @@ except:
     from thriftpy.transport import TBufferedTransport, TFramedTransport, TSocket, TTransportBase, TTransportException, readall
     from thriftpy.protocol import TBinaryProtocol, TCompactProtocol
 
+import puresasl
 from puresasl.client import SASLClient
+from happybase import ConnectionPool, NoConnectionsAvailable
 from happybase.util import ensure_bytes
-from Hbase_thrift import Hbase
-from struct import pack, unpack
 from happybase import Connection
-# from cStringIO import StringIO as BytesIO
-from io import BytesIO
-import contextlib
-import logging
-import socket
-import threading
+from Hbase_thrift import Hbase
 
-from six.moves import queue, range
-
+import kerberos
 from kerberos import KrbError
 
 logger = logging.getLogger(__name__)
+
+
+class CustomGSSAPIMechanism(puresasl.mechanisms.GSSAPIMechanism):
+    '''
+    The origin `GSSAPIMechanism` in puresasl don't work normally in python3 
+    '''
+    def wrap(self, outgoing):
+        if self.qop != puresasl.QOP.AUTH:
+            outgoing = base64.b64encode(outgoing)
+            if self.qop == puresasl.QOP.AUTH_CONF:
+                protect = 1
+            else:
+                protect = 0
+            kerberos.authGSSClientWrap(
+                self.context, outgoing.decode('utf8'), None, protect)
+            return base64.b64decode(kerberos.authGSSClientResponse(self.context))
+        else:
+            return outgoing
 
 class TSaslClientTransport(TTransportBase):
     """
@@ -42,7 +59,7 @@ class TSaslClientTransport(TTransportBase):
     ERROR = 4
     COMPLETE = 5
 
-    def __init__(self, transport, host, service, mechanism='GSSAPI',
+    def __init__(self, transport, host, service, mechanism=six.u('GSSAPI'),
                  **sasl_kwargs):
         """
         transport: an underlying transport to use, typically just a TSocket
@@ -54,10 +71,17 @@ class TSaslClientTransport(TTransportBase):
         """
 
         self.transport = transport
+
+        if six.PY3:
+            self._patch_pure_sasl()
         self.sasl = SASLClient(host, service, mechanism, **sasl_kwargs)
 
         self.__wbuf = BytesIO()
         self.__rbuf = BytesIO()
+
+    def _patch_pure_sasl(self):
+        ''' we need to patch pure_sasl to support python 3 '''
+        puresasl.mechanisms.mechanisms['GSSAPI'] = CustomGSSAPIMechanism
 
     def is_open(self):
         return self.transport.is_open() and bool(self.sasl)
@@ -66,7 +90,7 @@ class TSaslClientTransport(TTransportBase):
         if not self.transport.is_open():
             self.transport.open()
 
-        self.send_sasl_msg(self.START, bytearray(self.sasl.mechanism, 'utf8'))
+        self.send_sasl_msg(self.START, self.sasl.mechanism.encode('utf8'))
         self.send_sasl_msg(self.OK, self.sasl.process())
 
         while True:
@@ -88,6 +112,9 @@ class TSaslClientTransport(TTransportBase):
                     % (status, challenge))
 
     def send_sasl_msg(self, status, body):
+        '''
+        body:bytes
+        '''
         header = pack(">BI", status, len(body))
         self.transport.write(header + body)
         self.transport.flush()
@@ -107,7 +134,14 @@ class TSaslClientTransport(TTransportBase):
     def flush(self):
         data = self.__wbuf.getvalue()
         encoded = self.sasl.wrap(data)
-        self.transport.write(b''.join((pack("!i", len(encoded)), encoded)))
+        if six.PY2:
+            self.transport.write(''.join([
+                    pack("!i", len(encoded)), 
+                    encoded
+                ])
+            )
+        else:
+            self.transport.write(b''.join((pack("!i", len(encoded)), encoded)))
         self.transport.flush()
         self.__wbuf = BytesIO()
 
@@ -128,21 +162,6 @@ class TSaslClientTransport(TTransportBase):
     def close(self):
         self.sasl.dispose()
         self.transport.close()
-
-    # # based on TFramedTransport
-    # @property
-    # def cstringio_buf(self):
-    #     return self.__rbuf
-
-    # def cstringio_refill(self, prefix, reqlen):
-    #     # self.__rbuf will already be empty here because fastbinary doesn't
-    #     # ask for a refill until the previous buffer is empty.  Therefore,
-    #     # we can start reading new frames immediately.
-    #     while len(prefix) < reqlen:
-    #         self._read_frame()
-    #         prefix += self.__rbuf.getvalue()
-    #     self.__rbuf = BytesIO(prefix)
-    #     return self.__rbuf
 
 STRING_OR_BINARY = (six.binary_type, six.text_type)
 
