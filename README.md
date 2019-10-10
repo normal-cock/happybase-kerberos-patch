@@ -56,7 +56,7 @@ pool = KerberosConnectionPool(size=3, host='...', protocol='compact', use_kerber
 with pool.connection() as connection:
     test = connection.table('test')
     print test_table.row('row_key_1')
-    
+
 # multiple thrift servers high avaliable
 pool = KerberosConnectionPool(size=3, hosts=['thrift1', 'thrift2'], protocol='compact', use_kerberos=True)
 with pool.connection() as connection:
@@ -67,4 +67,4 @@ with pool.connection() as connection:
 ## Important points to remember
 
 * Only support "compact" protocol and "buffered" transport
-* Only support happybase>=1.0.0
+* Only support happybase>=1.2.0
