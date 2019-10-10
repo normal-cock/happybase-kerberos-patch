@@ -1,6 +1,6 @@
 # happybase-kerberos-patch
 [![Build Status](https://travis-ci.org/normal-cock/happybase-kerberos-patch.svg?branch=develop)](https://travis-ci.org/normal-cock/happybase-kerberos-patch)
-[![Coverage Status](https://coveralls.io/repos/github/normal-cock/happybase-kerberos-patch/badge.svg)](https://coveralls.io/github/normal-cock/happybase-kerberos-patch)
+[![Coverage Status](https://coveralls.io/repos/github/normal-cock/happybase-kerberos-patch/badge.svg?branch=master)](https://coveralls.io/github/normal-cock/happybase-kerberos-patch?branch=master)
 <!-- TOC -->
 
 - [happybase-kerberos-patch](#happybase-kerberos-patch)
