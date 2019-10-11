@@ -7,7 +7,7 @@ setup(
     test_suite='tests',
     install_requires=[
         'pykerberos',
-        'pure-sasl',
-        'happybase>=1.2.0',
+        'pure-sasl==0.6.1',
+        'happybase==1.2.0',
     ],
 )
