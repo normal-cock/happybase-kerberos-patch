@@ -39,7 +39,7 @@ sudo apt-get install libkrb5-dev
 
 `pip install -U git+https://github.com/normal-cock/happybase-kerberos-patch.git`
 
-# Usage:
+# Usage
 
 ```python
 from happybase_kerberos_patch import KerberosConnection, KerberosConnectionPool
