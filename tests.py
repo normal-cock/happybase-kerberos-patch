@@ -188,14 +188,15 @@ class TestKerberosConnection(unittest.TestCase):
             pack(">BI", happybase_kerberos_patch.TSaslClientTransport.OK, len(self.data_to_receive)) +
             self.data_to_receive +
             pack(">BI", happybase_kerberos_patch.TSaslClientTransport.COMPLETE, len(self.data_to_receive)) +
-            self.data_to_receive)
+            self.data_to_receive
+        )
         mock_sasl_client.return_value.wrap = lambda data: data
         mock_sasl_client.return_value.unwrap = lambda data: data
         mock_sasl_client.return_value.mechanism = 'GSSAPI'
 
         _HOST = 'HOST_TO_THRIFT_SERVER'
         connection = happybase_kerberos_patch.KerberosConnection(
-            _HOST, protocol='compact', use_kerberos=True)
+            _HOST, protocol='compact', use_kerberos=True, table_prefix='featurebank:')
         # connection.tables()
         mock_tsocket.assert_called_with(_HOST, happybase_kerberos_patch.DEFAULT_PORT)
         mock_sasl_client.assert_called_with(

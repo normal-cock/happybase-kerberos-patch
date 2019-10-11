@@ -9,14 +9,9 @@ import socket
 import threading
 from six.moves import queue, range
 
-try:
-    from thriftpy2.thrift import TClient, TException
-    from thriftpy2.transport import TBufferedTransport, TFramedTransport, TSocket, TTransportBase, TTransportException, readall
-    from thriftpy2.protocol import TBinaryProtocol, TCompactProtocol
-except:
-    from thriftpy.thrift import TClient, TException
-    from thriftpy.transport import TBufferedTransport, TFramedTransport, TSocket, TTransportBase, TTransportException, readall
-    from thriftpy.protocol import TBinaryProtocol, TCompactProtocol
+from thriftpy2.thrift import TClient, TException
+from thriftpy2.transport import TBufferedTransport, TFramedTransport, TSocket, TTransportBase, TTransportException, readall
+from thriftpy2.protocol import TBinaryProtocol, TCompactProtocol
 
 import puresasl
 from puresasl.client import SASLClient
