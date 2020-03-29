@@ -42,7 +42,9 @@ sudo apt-get install libkrb5-dev
 
 In China for higher install speed could use "-i https://pypi.tuna.tsinghua.edu.cn/simple"
 
-`pip install -U git+https://github.com/littlebear-xbz/happybase-kerberos-patch.git -i https://pypi.tuna.tsinghua.edu.cn/simple`
+```shell
+pip install -U git+https://github.com/littlebear-xbz/happybase-kerberos-patch.git -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
 
 # Usage
 
