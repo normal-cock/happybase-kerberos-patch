@@ -20,6 +20,9 @@ This is a patch for happybase to support kerberos when connect to hbase thrift s
 
 The patch now support `python 2.7`, `python 3.5`, `python 3.6`, `python 3.7`.
 
+The project is base on happybase https://github.com/python-happybase/happybase
+
+
 # requirements
 
 In order to use kerberos, the following packages is required:
