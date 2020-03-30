@@ -37,7 +37,7 @@ yum install python-devel
 
 # Installment
 
-In China for higher install speed could use "-i https://pypi.tuna.tsinghua.edu.cn/simple"
+In China for higher installation speed could use "-i https://pypi.tuna.tsinghua.edu.cn/simple"
 
 ```shell
 pip install -U git+https://github.com/littlebear-xbz/happybase-kerberos-patch.git -i https://pypi.tuna.tsinghua.edu.cn/simple
