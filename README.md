@@ -27,15 +27,12 @@ The project is base on happybase https://github.com/python-happybase/happybase
 
 In order to use kerberos, the following packages is required:
 
-1. python3-dev
-2. libkrb5-dev
+1. python-devel
 
-For example, in ubuntu install by the follow commands:
+For example, in redhat install by the follow commands:
 
 ```shell
-sudo apt-get install python-dev
-sudo apt-get install python3-dev
-sudo apt-get install libkrb5-dev
+yum install python-devel
 ```
 
 # Installment
