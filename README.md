@@ -20,12 +20,23 @@ This is a patch for happybase to support kerberos when connect to hbase thrift s
 
 The patch now support `python 2.7`, `python 3.5`, `python 3.6`, `python 3.7`.
 
+The project is base on happybase https://github.com/python-happybase/happybase
+
+
 # requirements
 
 In order to use kerberos, the following packages is required:
 
-1. python3-dev
-2. libkrb5-dev
+1. python-devel or python3-devel (depend on which you use)
+2. krb5-lib5
+3. krb-workstation
+
+For example, in redhat install by the follow commands:
+
+```shell
+yum install python-devel
+yum -y install krb5-libs krb5-workstation
+```
 
 For example, in ubuntu install by the follow commands:
 
@@ -35,9 +46,14 @@ sudo apt-get install python3-dev
 sudo apt-get install libkrb5-dev
 ```
 
+
 # Installment
 
-`pip install -U git+https://github.com/normal-cock/happybase-kerberos-patch.git`
+In China for higher installation speed could use "-i https://pypi.tuna.tsinghua.edu.cn/simple"
+
+```shell
+pip install -U git+https://github.com/littlebear-xbz/happybase-kerberos-patch.git -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
 
 # Usage
 
