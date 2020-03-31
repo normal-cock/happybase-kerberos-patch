@@ -27,7 +27,7 @@ The project is base on happybase https://github.com/python-happybase/happybase
 
 In order to use kerberos, the following packages is required:
 
-1. python-devel
+1. python-devel or python3-devel (depend on which you use)
 2. krb5-lib5
 3. krb-workstation
 
